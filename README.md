@@ -60,50 +60,65 @@ O projeto demonstra a implementação de um sistema distribuído de sensoriament
 
 ### 5. `leds-receptor.c++`
 
-**Controlador de LEDs/Atuador**
+**Controlador de LEDs/Atuador com Conectividade em Nuvem**
 
-- **Função**: Dispositivo atuador com controle visual
+- **Função**: Dispositivo atuador híbrido com controle visual e conectividade IoT
 - **Características**:
   - Controla 5 LEDs conectados nos pinos 4, 18, 25, 14, 32
+  - **Conectividade Dual**: ESP-NOW + Wi-Fi
+  - **Integração com Nuvem**: Envia dados automaticamente para FlowFuse/Node-RED via HTTP POST
   - Recebe comandos via ESP-NOW e executa ações:
     - **Dado01**: Liga/desliga LED 1
     - **Dado02**: Liga/desliga LED 2
     - **Dado03**: Modo piscar todos os LEDs (300ms)
     - **Dado04**: Liga LED 4 se valor entre 51-100
     - **Dado05**: Bloqueio total (desliga todos os LEDs)
+  - **Monitoramento Remoto**: Dados enviados em JSON para plataforma em nuvem
   - Feedback visual de comandos recebidos
-- **Uso**: Controle remoto de dispositivos visuais
+- **Configuração**:
+  - SSID e senha Wi-Fi configuráveis
+  - URL do endpoint FlowFuse/Node-RED personalizável
+- **Uso**: Controle remoto com monitoramento IoT e dashboards web
 
 ## 🔧 Tecnologias Utilizadas
 
 - **Linguagem**: C++ (Arduino Framework)
 - **Hardware**: ESP32
 - **Protocolo**: ESP-NOW (comunicação sem fio ponto-a-ponto)
+- **Conectividade**: Wi-Fi + HTTP/HTTPS
+- **Plataforma IoT**: FlowFuse/Node-RED
 - **Sensores**: DHT11 (temperatura e umidade)
 - **Bibliotecas**:
   - `esp_now.h` - Comunicação ESP-NOW
   - `WiFi.h` - Configuração Wi-Fi
+  - `HTTPClient.h` - Comunicação HTTP para nuvem
   - `DHT.h` - Sensor DHT11
   - `ArduinoJson.h` - Manipulação de dados JSON
 
 ## 🌐 Arquitetura da Rede
 
 ```
-[Master] ──────────────────> [LEDs Receptor]
-                               (Broadcast)
-
+[Master] ──────────────────> [LEDs Receptor] ────┐
+                               (Broadcast)        │
+                                   │              │
 [DHT Sensor] ──> [Intermediário] ──> [Final Receptor]
-                  (Repetidor)
+                  (Repetidor)        │              │
+                                     └──── Internet ──── [FlowFuse/Node-RED]
+                                          (Wi-Fi)         (Dashboard/Cloud)
 ```
 
 ## 🚀 Como Usar
 
 1. **Configure os endereços MAC** nos códigos conforme seus dispositivos ESP32
-2. **Carregue cada código** no respectivo ESP32
-3. **Para o Master**: Use o monitor serial com formato `ID,1,0,1,75,0`
-4. **Para o DHT**: Conecte o sensor DHT11 no pino 19
-5. **Para LEDs**: Conecte LEDs nos pinos especificados
-6. **Monitore** a comunicação via serial em cada dispositivo
+2. **Configure credenciais Wi-Fi** no `leds-receptor.c++`:
+   - Altere `SEU_WIFI` e `SENHA_WIFI`
+   - Configure a URL do FlowFuse: `https://SEU-FLOWFUSE.flowfuse.com/dadosesp`
+3. **Carregue cada código** no respectivo ESP32
+4. **Para o Master**: Use o monitor serial com formato `ID,1,0,1,75,0`
+5. **Para o DHT**: Conecte o sensor DHT11 no pino 19
+6. **Para LEDs**: Conecte LEDs nos pinos especificados
+7. **Monitore** a comunicação via serial em cada dispositivo
+8. **Visualize dados** no dashboard FlowFuse/Node-RED
 
 ## 📚 Conceitos de Sistemas Ciberfísicos
 
@@ -111,6 +126,9 @@ Este projeto demonstra:
 
 - **Sistemas Distribuídos**: Múltiplos dispositivos colaborando
 - **Comunicação Sem Fio**: ESP-NOW para baixa latência
+- **Conectividade IoT**: Integração com plataformas em nuvem
 - **Sensoriamento**: Coleta automática de dados ambientais
 - **Atuação**: Controle remoto de dispositivos físicos
 - **Redundância**: Dispositivos intermediários para robustez
+- **Monitoramento Remoto**: Dashboards web para visualização de dados
+- **Arquitetura Híbrida**: Combinação de protocolos locais (ESP-NOW) e internet (HTTP/Wi-Fi)
