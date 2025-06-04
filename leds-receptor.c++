@@ -1,14 +1,21 @@
-#include <esp_now.h>
 #include <WiFi.h>
+#include <esp_now.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 
-const int pino1 = 4;   // LED 1
-const int pino2 = 18;  // LED 2
-const int pino3 = 25;  // LED 3
-const int pino4 = 14;  // LED 4
-const int pino5 = 32;  // LED 5
+// ==== CONFIGURAÇÕES ====
+const char* ssid = "SEU_WIFI";           // <--- Coloque o nome do seu Wi-Fi
+const char* password = "SENHA_WIFI";     // <--- Coloque a senha do seu Wi-Fi
+const char* serverUrl = "https://SEU-FLOWFUSE.flowfuse.com/dadosesp"; // <--- URL do seu endpoint Node-RED/FlowFuse
+
+// ==== PINOS ====
+const int pino1 = 4;
+const int pino2 = 18;
+const int pino3 = 25;
+const int pino4 = 14;
+const int pino5 = 32;
 
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-
 #define ID "equipe06"
 
 typedef struct dados_esp {
@@ -20,10 +27,46 @@ dados_esp recebidoDados;
 
 String ID_externa;
 int recebido01 = 0, recebido02 = 0, recebido03 = 0, recebido04 = 0, recebido05 = 0;
-
 bool estadoPiscar = false;
 unsigned long ultimoPiscar = 0;
 
+// ==== ENVIA DADOS PARA FLOWFUSE ====
+void enviarParaNuvem() {
+  if ((WiFi.status() == WL_CONNECTED)) {
+    HTTPClient http;
+
+    http.begin(serverUrl);
+    http.addHeader("Content-Type", "application/json");
+
+    // Cria o JSON a ser enviado
+    StaticJsonDocument<200> json;
+    json["id"] = ID_externa;
+    json["dado01"] = recebido01;
+    json["dado02"] = recebido02;
+    json["dado03"] = recebido03;
+    json["dado04"] = recebido04;
+    json["dado05"] = recebido05;
+
+    String jsonString;
+    serializeJson(json, jsonString);
+
+    int httpResponseCode = http.POST(jsonString);
+
+    if (httpResponseCode > 0) {
+      Serial.print("Enviado para FlowFuse, código: ");
+      Serial.println(httpResponseCode);
+    } else {
+      Serial.print("Erro no envio: ");
+      Serial.println(http.errorToString(httpResponseCode));
+    }
+
+    http.end();
+  } else {
+    Serial.println("WiFi desconectado.");
+  }
+}
+
+// ==== RECEBE DADOS ESP-NOW ====
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
   memcpy(&recebidoDados, incomingData, sizeof(recebidoDados));
   ID_externa = recebidoDados.id;
@@ -41,6 +84,16 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
   Serial.print("Dado04: "); Serial.println(recebido04);
   Serial.print("Dado05: "); Serial.println(recebido05);
   Serial.println();
+
+  enviarParaNuvem(); // Envia para a nuvem ao receber
+}
+
+void desligarTodos() {
+  digitalWrite(pino1, LOW);
+  digitalWrite(pino2, LOW);
+  digitalWrite(pino3, LOW);
+  digitalWrite(pino4, LOW);
+  digitalWrite(pino5, LOW);
 }
 
 void setup() {
@@ -51,17 +104,19 @@ void setup() {
   pinMode(pino3, OUTPUT);
   pinMode(pino4, OUTPUT);
   pinMode(pino5, OUTPUT);
-
-  digitalWrite(pino1, LOW);
-  digitalWrite(pino2, LOW);
-  digitalWrite(pino3, LOW);
-  digitalWrite(pino4, LOW);
-  digitalWrite(pino5, LOW);
+  desligarTodos();
 
   WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando ao Wi-Fi...");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWi-Fi conectado. IP: " + WiFi.localIP().toString());
 
   if (esp_now_init() != ESP_OK) {
-    Serial.println("Erro ao inicializar ESP-NOW");
+    Serial.println("Erro ao iniciar ESP-NOW");
     return;
   }
 
@@ -78,24 +133,14 @@ void setup() {
   }
 }
 
-void desligarTodos() {
-  digitalWrite(pino1, LOW);
-  digitalWrite(pino2, LOW);
-  digitalWrite(pino3, LOW);
-  digitalWrite(pino4, LOW);
-  digitalWrite(pino5, LOW);
-}
-
 void loop() {
   delay(10);
 
-  // DADO 5: bloqueio total
   if (recebido05 == 1) {
     desligarTodos();
     return;
   }
 
-  // DADO 3: piscar todos os LEDs
   if (recebido03 == 1) {
     unsigned long agora = millis();
     if (agora - ultimoPiscar >= 300) {
@@ -107,23 +152,13 @@ void loop() {
       digitalWrite(pino5, estadoPiscar);
       ultimoPiscar = agora;
     }
-    return; 
+    return;
   }
 
-  // DADO 1: LED 1 (ligado ou desligado)
   digitalWrite(pino1, recebido01 == 1 ? HIGH : LOW);
-
-  // DADO 2: LED 2 (ligado ou desligado)
   digitalWrite(pino2, recebido02 == 1 ? HIGH : LOW);
+  digitalWrite(pino4, (recebido04 >= 51 && recebido04 <= 100) ? HIGH : LOW);
 
-  // DADO 4: LED 4 (intensidade baseada no valor)
-  if (recebido04 >= 51 && recebido04 <= 100) {
-    digitalWrite(pino4, HIGH);
-  } else {
-    digitalWrite(pino4, LOW);
-  }
-
-  // LED 3 e 5 desligados se não estiver piscando nem acionados por outro dado
   digitalWrite(pino3, LOW);
-  digitalWrite(pino5, LOW);
+  digitalWrite(pino5, LOW);
 }
